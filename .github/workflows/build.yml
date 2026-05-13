@@ -84,9 +84,13 @@ jobs:
     - name: Load diffconfig
       run: |
         DEVICE="${{ matrix.device }}"
-        DIFFCONFIG="diffconfig_${DEVICE}"
-        [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
-
+        # Если собирается mf68e, автоматически вытаскиваем его скрытый конфиг из архива проекта
+        if [ "$DEVICE" = "mf68e" ]; then
+          cp TBR/mf68e/diffconfig_mf68e openwrt/.config
+        else
+          DIFFCONFIG="diffconfig_${DEVICE}"
+          [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
+        fi
     - name: Download package
       id: package
       run: |
