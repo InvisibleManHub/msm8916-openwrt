@@ -86,7 +86,7 @@ jobs:
         DEVICE="${{ matrix.device }}"
         # Если собирается mf68e, автоматически вытаскиваем его скрытый конфиг из архива проекта
         if [ "$DEVICE" = "mf68e" ]; then
-          cp TBR/mf68e/diffconfig_mf68e openwrt/.config
+          cp TBR/diffconfig_mf68e openwrt/.config
         else
           DIFFCONFIG="diffconfig_${DEVICE}"
           [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
