@@ -24,13 +24,14 @@ jobs:
     outputs:
       openwrt_version: ${{ steps.resolve.outputs.version }}
     steps:
-    - name: Resolve latest stable OpenWrt 25.12.x tag
+    - name: Resolve latest stable OpenWrt 24.10.x tag
       id: resolve
       run: |
-        VERSION=$(git ls-remote --tags https://git.openwrt.org/openwrt/openwrt.git 'v25.12.*' \
-          | grep -oP 'v25\.12\.\d+$' | sort -V | tail -1)
+        VERSION=$(git ls-remote --tags https://git.openwrt.org/openwrt/openwrt.git 'v24.10.*' \
+
+          | grep -oP 'v24\.10\.\d+$' | sort -V | tail -1)
         if [ -z "$VERSION" ]; then
-          echo "ERROR: Could not resolve a stable OpenWrt 25.12.x version"
+          echo "ERROR: Could not resolve a stable OpenWrt 24.10.x version"
           exit 1
         fi
         echo "Resolved OpenWrt version: $VERSION"
@@ -43,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["uz801","uf02"]' || format('["{0}"]', inputs.device)) }}
+        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["uz801","uf02","mf68e"]' || format('["{0}"]', inputs.device)) }}
 
     steps:
     - name: Checkout
@@ -84,13 +85,20 @@ jobs:
     - name: Load diffconfig
       run: |
         DEVICE="${{ matrix.device }}"
-        DIFFCONFIG="diffconfig_${DEVICE}"
-        [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
+        # Если собирается mf68e, автоматически вытаскиваем его скрытый конфиг из архива проекта
+        if [ "$DEVICE" = "mf68e" ]; then
+          cp TBR/mf68e/diffconfig_mf68e openwrt/.config
+        else
+          DIFFCONFIG="diffconfig_${DEVICE}"
+          [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
+        fi
 
     - name: Download package
       id: package
       run: |
         cd openwrt
+        make defconfig
+        make target/linux/refresh
         make defconfig
         make download -j8
         find dl -size -1024c -exec rm -f {} \; || true
@@ -100,7 +108,7 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
+        make -j$(nproc) || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
@@ -120,8 +128,8 @@ jobs:
         name: openwrt_firmware_${{ matrix.device }}_${{needs.resolve-version.outputs.openwrt_version}}_${{ env.FILE_DATE }}
         path: |
           ${{ env.FIRMWARE }}/openwrt-msm89xx-*-squashfs-gpt_both0.bin
-          ${{ env.FIRMWARE }}/openwrt-msm89xx-*-squashfs-boot.img
-          ${{ env.FIRMWARE }}/openwrt-msm89xx-*-squashfs-system.img
+          ${{ env.FIRMWARE }}/openwrt-msm89xx-*-boot.img
+          ${{ env.FIRMWARE }}/openwrt-msm89xx-*-rootfs.img
           ${{ env.FIRMWARE }}/openwrt-msm89xx-*.manifest
           ${{ env.FIRMWARE }}/openwrt-msm89xx-*-flash.sh
           ${{ env.FIRMWARE }}/openwrt-msm89xx-*-firmware.zip
