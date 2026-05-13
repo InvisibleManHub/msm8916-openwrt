@@ -12,7 +12,7 @@ on:
           - all
           - uz801
           - uf02
-          - m68f
+          - mf68e
 
 env:
   UPLOAD_FIRMWARE: true
@@ -28,6 +28,7 @@ jobs:
       id: resolve
       run: |
         VERSION=$(git ls-remote --tags https://git.openwrt.org/openwrt/openwrt.git 'v25.12.*' \
+
           | grep -oP 'v25\.12\.\d+$' | sort -V | tail -1)
         if [ -z "$VERSION" ]; then
           echo "ERROR: Could not resolve a stable OpenWrt 25.12.x version"
@@ -43,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["uz801","uf02"]' || format('["{0}"]', inputs.device)) }}
+        device: ${{ fromJSON((inputs.device == 'all' || inputs.device == '') && '["uz801","uf02","mf68e"]' || format('["{0}"]', inputs.device)) }}
 
     steps:
     - name: Checkout
@@ -81,16 +82,32 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
+    - name: Fix Kconfig DRM recursive dependency
+      run: |
+        cd openwrt
+        # Временный хак: убираем жесткую циклическую привязку DRM к ядру 6.18 в Kconfig модулей
+        if [ -f "package/kernel/linux/modules/video.mk" ]; then
+          sed -i 's/DEPENDS:=.*/DEPENDS:=/g' package/kernel/linux/modules/video.mk
+        fi
+
     - name: Load diffconfig
       run: |
         DEVICE="${{ matrix.device }}"
-        DIFFCONFIG="diffconfig_${DEVICE}"
-        [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
+        if [ "$DEVICE" = "mf68e" ]; then
+          # Автоматически вытаскиваем скрытый профиль MF68E из архива проекта
+          cp "TBR/mf68e/diffconfig_mf68e" openwrt/.config
+          # Отключаем DRM модули дисплея, ломающие компиляцию (экран в OpenWrt все равно не поддерживается)
+          sed -i '/kmod-drm/d' openwrt/.config
+        else
+          DIFFCONFIG="diffconfig_${DEVICE}"
+          [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
+        fi
 
     - name: Download package
       id: package
       run: |
         cd openwrt
+        rm -rf tmp
         make defconfig
         make download -j8
         find dl -size -1024c -exec rm -f {} \; || true
@@ -100,7 +117,7 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
+        make -j$(nproc) || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
