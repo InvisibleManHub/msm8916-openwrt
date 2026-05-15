@@ -84,7 +84,7 @@ jobs:
     - name: Load diffconfig
       run: |
         DEVICE="${{ matrix.device }}"
-        DIFFCONFIG="diffconfig_${DEVICE}"
+        DIFFCONFIG="TBR/diffconfig_${DEVICE}"
         [ -f "$DIFFCONFIG" ] && mv "$DIFFCONFIG" openwrt/.config
 
     - name: Download package
